@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>점심 내기 사다리타기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        
+        .ladder-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+        .ladder-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .ladder-scroll::-webkit-scrollbar-thumb { background: #c7c7c7; border-radius: 4px; }
+        .ladder-scroll::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+        canvas { cursor: pointer; }
+        .input-group-move { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-amber-50 h-screen flex items-center justify-center p-4 overflow-hidden">
+
+    <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col" style="height: 85vh;">
+        
+        <!-- Header -->
+        <div class="bg-amber-500 p-4 flex justify-between items-center text-white shadow-md z-10 shrink-0">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i class="fa-solid fa-utensils"></i> 미스터리 사다리
+            </h1>
+            <button onclick="resetGame()" class="bg-amber-600 hover:bg-amber-700 text-xs px-3 py-1.5 rounded-lg transition">
+                <i class="fa-solid fa-rotate-right mr-1"></i> 처음으로
+            </button>
+        </div>
+
+        <!-- Content Area -->
+        <div class="flex-1 relative bg-white p-6 flex flex-col items-center justify-center overflow-hidden">
+            
+            <!-- Step 1: 인원 설정 -->
+            <div id="step-1" class="w-full max-w-md text-center space-y-6">
+                <div class="text-6xl text-amber-500 mb-4">
+                    <i class="fa-solid fa-users-line"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">참여 인원을 선택하세요</h2>
+                <p class="text-gray-500">최대 11명까지 가능합니다</p>
+                
+                <div class="flex items-center justify-center gap-4 my-6">
+                    <button onclick="adjustCount(-1)" class="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 text-xl font-bold text-gray-600 transition">-</button>
+                    <span id="player-count-display" class="text-4xl font-bold text-amber-600 w-16">4</span>
+                    <button onclick="adjustCount(1)" class="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 text-xl font-bold text-gray-600 transition">+</button>
+                </div>
+
+                <button onclick="goToStep2()" class="w-full bg-amber-500 hover:bg-amber-600 text-white text-lg font-bold py-3 rounded-xl shadow-lg transition transform active:scale-95">
+                    다음 단계로 <i class="fa-solid fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+
+            <!-- Step 2: 이름 입력 (결과 입력 삭제됨) -->
+            <div id="step-2" class="hidden w-full h-full flex flex-col">
+                <h2 class="text-xl font-bold text-gray-800 mb-2 text-center shrink-0">참가자 이름을 입력하세요</h2>
+                <p class="text-sm text-gray-500 text-center mb-4 shrink-0">결과는 자동으로 랜덤 배치됩니다 (2명 당첨)</p>
+                
+                <!-- 입력 폼 -->
+                <div class="flex-1 overflow-y-auto pr-2 mb-4 border-t border-b border-gray-100 py-4">
+                    <div class="grid grid-cols-[40px_1fr] gap-2 items-center mb-2 text-xs text-gray-500 font-bold text-center px-4">
+                        <span>번호</span>
+                        <span>참가자 이름</span>
+                    </div>
+                    <div id="input-container" class="space-y-3 px-4">
+                        <!-- JS로 생성됨 -->
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-auto shrink-0">
+                    <button onclick="fillRandomNames()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition text-sm">
+                        <i class="fa-solid fa-shuffle mr-1"></i> 랜덤 이름 채우기
+                    </button>
+                    <button onclick="startGame()" class="flex-[2] bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl shadow-lg transition transform active:scale-95 text-lg">
+                        사다리 시작! <i class="fa-solid fa-play ml-1"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: 게임 화면 -->
+            <div id="step-3" class="hidden w-full h-full flex flex-col relative">
+                <div class="flex justify-between items-center mb-2 px-2 shrink-0">
+                    <p class="text-sm text-gray-500"><i class="fa-solid fa-circle-info mr-1"></i>이름을 클릭하면 결과가 공개됩니다</p>
+                    <button onclick="startAllAnimation()" id="btn-start-all" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow transition">
+                        <i class="fa-solid fa-rocket mr-1"></i> 전체 결과 공개
+                    </button>
+                </div>
+                
+                <div class="flex-1 ladder-scroll overflow-auto relative bg-gray-50 rounded-xl border border-gray-200 shadow-inner w-full">
+                    <canvas id="ladder-canvas"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // === Global State ===
+        let playerCount = 4;
+        const MAX_PLAYERS = 11;
+        const MIN_PLAYERS = 2;
+        
+        let players = []; // {name, color, x, finished}
+        let bottomResults = []; // {text, isLoser, revealed} - 바닥에 배치된 결과들
+        
+        let ladderData = []; 
+        let ctx = null;
+        let canvas = null;
+        
+        const COL_WIDTH = 100; 
+        const TOP_MARGIN = 60; 
+        const BOTTOM_MARGIN = 60; 
+        const HORIZONTAL_STEPS = 22; 
+        
+        const COLORS = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', 
+            '#FF9F43', '#54A0FF', '#5F27CD', '#FF9FF3', '#0ABDE3', '#1DD1A1'
+        ];
+
+        function adjustCount(delta) {
+            playerCount += delta;
+            if (playerCount < MIN_PLAYERS) playerCount = MIN_PLAYERS;
+            if (playerCount > MAX_PLAYERS) playerCount = MAX_PLAYERS;
+            document.getElementById('player-count-display').textContent = playerCount;
+        }
+
+        function goToStep2() {
+            document.getElementById('step-1').classList.add('hidden');
+            document.getElementById('step-2').classList.remove('hidden');
+            document.getElementById('step-2').classList.add('flex');
+            generateInputs();
+        }
+
+        function generateInputs() {
+            const container = document.getElementById('input-container');
+            container.innerHTML = '';
+
+            for (let i = 0; i < playerCount; i++) {
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-[40px_1fr] gap-3 items-center input-group-move';
+                row.style.animationDelay = `${i * 0.05}s`;
+                
+                row.innerHTML = `
+                    <div class="flex justify-center items-center w-8 h-8 rounded-full text-white font-bold shadow-sm" style="background-color: ${COLORS[i]}">
+                        ${i + 1}
+                    </div>
+                    <input type="text" id="name-${i}" placeholder="참가자 ${i+1}" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none" value="참가자 ${i+1}">
+                `;
+                container.appendChild(row);
+            }
+        }
+
+        function fillRandomNames() {
+            const randomNames = ["철수", "영희", "민수", "지혜", "동현", "수진", "재우", "나영", "준호", "유리", "성민"];
+            for (let i = 0; i < playerCount; i++) {
+                const nameInput = document.getElementById(`name-${i}`);
+                if(nameInput) {
+                    nameInput.value = randomNames[i % randomNames.length];
+                }
+            }
+        }
+
+        function startGame() {
+            // 1. 플레이어 정보 수집
+            players = [];
+            for (let i = 0; i < playerCount; i++) {
+                const name = document.getElementById(`name-${i}`).value || `참가자 ${i+1}`;
+                players.push({ name, color: COLORS[i], finished: false });
+            }
+
+            // 2. 바닥 결과 생성 (2명만 당첨, 나머지 통과)
+            bottomResults = [];
+            let tempResults = [];
+            tempResults.push({text: "🍔 점심쏘기", isLoser: true});
+            tempResults.push({text: "🍔 점심쏘기", isLoser: true});
+            for(let i = 2; i < playerCount; i++) {
+                tempResults.push({text: "👍 통과", isLoser: false});
+            }
+            
+            // 셔플
+            for (let i = tempResults.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [tempResults[i], tempResults[j]] = [tempResults[j], tempResults[i]];
+            }
+
+            // 상태 초기화
+            bottomResults = tempResults.map(r => ({
+                ...r,
+                revealed: false // 처음에는 숨김
+            }));
+
+            // 3. 사다리 생성
+            generateLadderData();
+
+            // 4. 화면 전환
+            document.getElementById('step-2').classList.add('hidden');
+            document.getElementById('step-2').classList.remove('flex');
+            document.getElementById('step-3').classList.remove('hidden');
+            document.getElementById('step-3').classList.add('flex');
+
+            setTimeout(initCanvas, 50);
+        }
+
+        function generateLadderData() {
+            ladderData = []; 
+            for (let s = 0; s < HORIZONTAL_STEPS; s++) {
+                const stepRow = [];
+                for (let c = 0; c < playerCount - 1; c++) {
+                    let hasBridge = false;
+                    if (Math.random() < 0.5) {
+                        if (c === 0 || !stepRow[c-1]) {
+                            hasBridge = true;
+                        }
+                    }
+                    stepRow.push(hasBridge);
+                }
+                ladderData.push(stepRow);
+            }
+        }
+
+        function initCanvas() {
+            canvas = document.getElementById('ladder-canvas');
+            ctx = canvas.getContext('2d');
+            const scrollContainer = document.querySelector('.ladder-scroll');
+            
+            const minWidth = scrollContainer.clientWidth;
+            const requiredWidth = playerCount * COL_WIDTH + COL_WIDTH;
+            const width = Math.max(minWidth, requiredWidth);
+            const height = Math.max(scrollContainer.clientHeight, 600); 
+
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            canvas.style.width = `${width}px`;
+            canvas.style.height = `${height}px`;
+            ctx.scale(dpr, dpr);
+
+            canvas.removeEventListener('click', handleCanvasClick);
+            canvas.addEventListener('click', handleCanvasClick);
+
+            drawBaseLadder();
+        }
+
+        function drawBaseLadder() {
+            const w = parseInt(canvas.style.width);
+            const h = parseInt(canvas.style.height);
+            
+            ctx.clearRect(0, 0, w, h);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const ladderHeight = h - TOP_MARGIN - BOTTOM_MARGIN;
+            const stepHeight = ladderHeight / (HORIZONTAL_STEPS + 1);
+
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 14px "Noto Sans KR"';
+
+            for (let i = 0; i < playerCount; i++) {
+                const x = (i + 1) * COL_WIDTH;
+                
+                // 세로선
+                ctx.beginPath();
+                ctx.moveTo(x, TOP_MARGIN);
+                ctx.lineTo(x, h - BOTTOM_MARGIN);
+                ctx.strokeStyle = '#e5e7eb'; // 더 연한 색
+                ctx.lineWidth = 6;
+                ctx.stroke();
+
+                // 상단 이름
+                ctx.fillStyle = players[i].color;
+                roundRect(ctx, x - 40, 10, 80, 30, 8, true, false);
+                ctx.fillStyle = 'white';
+                ctx.fillText(players[i].name, x, 30);
+
+                // 하단 결과 (미스터리 상자 로직)
+                const resultObj = bottomResults[i];
+                
+                if (resultObj.revealed) {
+                    // 공개됨
+                    ctx.fillStyle = resultObj.isLoser ? '#ef4444' : '#3b82f6'; // 쏘기는 빨강, 통과는 파랑
+                    roundRect(ctx, x - 45, h - 45, 90, 30, 8, true, false);
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(resultObj.text, x, h - 25);
+                } else {
+                    // 숨겨짐 (?)
+                    ctx.fillStyle = '#9ca3af'; // 회색
+                    roundRect(ctx, x - 30, h - 45, 60, 30, 8, true, false);
+                    ctx.fillStyle = 'white';
+                    ctx.fillText("?", x, h - 25);
+                }
+            }
+
+            // 가로선
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 6;
+
+            for (let s = 0; s < HORIZONTAL_STEPS; s++) {
+                const y = TOP_MARGIN + (s + 1) * stepHeight;
+                for (let c = 0; c < playerCount - 1; c++) {
+                    if (ladderData[s][c]) {
+                        const x1 = (c + 1) * COL_WIDTH;
+                        const x2 = (c + 2) * COL_WIDTH;
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y);
+                        ctx.lineTo(x2, y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        // === Animation Logic ===
+        let animations = [];
+        let isAnimating = false;
+
+        function startAllAnimation() {
+            if (isAnimating) return;
+            document.getElementById('btn-start-all').disabled = true;
+            document.getElementById('btn-start-all').classList.add('opacity-50', 'cursor-not-allowed');
+
+            players.forEach((_, idx) => {
+                if (!players[idx].finished) { // 안 끝난 사람만 출발
+                    startPlayerAnimation(idx);
+                }
+            });
+        }
+
+        function handleCanvasClick(e) {
+            if (isAnimating) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left);
+            const y = (e.clientY - rect.top);
+
+            if (y < TOP_MARGIN + 20) {
+                const clickedIdx = Math.round((x / COL_WIDTH) - 1);
+                if (clickedIdx >= 0 && clickedIdx < playerCount) {
+                    const targetX = (clickedIdx + 1) * COL_WIDTH;
+                    if (Math.abs(x - targetX) < 40) {
+                        if (!players[clickedIdx].finished) {
+                            startPlayerAnimation(clickedIdx);
+                        }
+                    }
+                }
+            }
+        }
+
+        function startPlayerAnimation(playerIndex) {
+            const path = calculatePath(playerIndex);
+            
+            animations.push({
+                playerIndex: playerIndex,
+                path: path,
+                currentStep: 0,
+                progress: 0,
+                color: players[playerIndex].color
+            });
+
+            if (!isAnimating) {
+                isAnimating = true;
+                animateFrame();
+            }
+        }
+
+        function calculatePath(startIdx) {
+            const path = [];
+            const h = parseInt(canvas.style.height);
+            const ladderHeight = h - TOP_MARGIN - BOTTOM_MARGIN;
+            const stepHeight = ladderHeight / (HORIZONTAL_STEPS + 1);
+
+            let currentX = (startIdx + 1) * COL_WIDTH;
+            let currentY = TOP_MARGIN;
+            let col = startIdx;
+
+            path.push({x: currentX, y: currentY});
+
+            for (let s = 0; s < HORIZONTAL_STEPS; s++) {
+                const nextY = TOP_MARGIN + (s + 1) * stepHeight;
+                path.push({x: currentX, y: nextY});
+                currentY = nextY;
+
+                if (col < playerCount - 1 && ladderData[s][col]) {
+                    currentX += COL_WIDTH;
+                    col++;
+                    path.push({x: currentX, y: currentY});
+                }
+                else if (col > 0 && ladderData[s][col-1]) {
+                    currentX -= COL_WIDTH;
+                    col--;
+                    path.push({x: currentX, y: currentY});
+                }
+            }
+            path.push({x: currentX, y: h - BOTTOM_MARGIN});
+            return path;
+        }
+
+        function animateFrame() {
+            if (animations.length === 0) {
+                isAnimating = false;
+                return;
+            }
+
+            drawBaseLadder();
+            const speed = 0.25; // 속도
+
+            for (let i = animations.length - 1; i >= 0; i--) {
+                const anim = animations[i];
+                anim.progress += speed;
+
+                if (anim.progress >= 1) {
+                    anim.progress = 0;
+                    anim.currentStep++;
+                }
+
+                // 경로 그리기
+                ctx.beginPath();
+                ctx.strokeStyle = anim.color;
+                ctx.lineWidth = 8;
+                ctx.moveTo(anim.path[0].x, anim.path[0].y);
+
+                for (let j = 1; j <= anim.currentStep; j++) {
+                    if (j < anim.path.length) {
+                        ctx.lineTo(anim.path[j].x, anim.path[j].y);
+                    }
+                }
+
+                if (anim.currentStep < anim.path.length - 1) {
+                    const p1 = anim.path[anim.currentStep];
+                    const p2 = anim.path[anim.currentStep + 1];
+                    const curX = p1.x + (p2.x - p1.x) * anim.progress;
+                    const curY = p1.y + (p2.y - p1.y) * anim.progress;
+                    ctx.lineTo(curX, curY);
+                    
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(curX, curY, 8, 0, Math.PI * 2);
+                    ctx.fillStyle = anim.color;
+                    ctx.fill();
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                } else {
+                    // 도착!
+                    ctx.stroke();
+                    
+                    // 중요: 도착한 곳의 인덱스 계산하여 결과 공개
+                    const finalP = anim.path[anim.path.length - 1];
+                    const finalColIdx = Math.round((finalP.x / COL_WIDTH) - 1);
+                    
+                    // 결과 공개 상태 변경
+                    if (bottomResults[finalColIdx]) {
+                        bottomResults[finalColIdx].revealed = true;
+                    }
+
+                    // 도착 후 즉시 다시 그리기 (결과 텍스트를 보여주기 위해)
+                    const resultObj = bottomResults[finalColIdx];
+                    const boxColor = resultObj.isLoser ? '#ef4444' : '#3b82f6';
+
+                    ctx.fillStyle = boxColor;
+                    roundRect(ctx, finalP.x - 45, parseInt(canvas.style.height) - 45, 90, 30, 8, true, false);
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(resultObj.text, finalP.x, parseInt(canvas.style.height) - 25);
+
+                    if (!players[anim.playerIndex].finished) {
+                        players[anim.playerIndex].finished = true;
+                        players[anim.playerIndex].finalPath = anim.path;
+                    }
+                    animations.splice(i, 1);
+                }
+            }
+
+            // 완료된 경로 덧그리기
+            players.forEach(p => {
+                if (p.finished && p.finalPath) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = p.color;
+                    ctx.lineWidth = 8;
+                    ctx.moveTo(p.finalPath[0].x, p.finalPath[0].y);
+                    for (let k = 1; k < p.finalPath.length; k++) {
+                        ctx.lineTo(p.finalPath[k].x, p.finalPath[k].y);
+                    }
+                    ctx.stroke();
+                    
+                    // 결과 박스 유지 (이미 drawBaseLadder에서 처리되지만 최상단 렌더링을 위해)
+                }
+            });
+
+            if (animations.length > 0) {
+                requestAnimationFrame(animateFrame);
+            } else {
+                isAnimating = false;
+            }
+        }
+
+        function resetGame() {
+            players = [];
+            animations = [];
+            isAnimating = false;
+            document.getElementById('btn-start-all').disabled = false;
+            document.getElementById('btn-start-all').classList.remove('opacity-50', 'cursor-not-allowed');
+            
+            document.getElementById('step-3').classList.add('hidden');
+            document.getElementById('step-3').classList.remove('flex');
+            document.getElementById('step-1').classList.remove('hidden');
+        }
+
+        function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+            if (typeof stroke === 'undefined') { stroke = true; }
+            if (typeof radius === 'undefined') { radius = 5; }
+            if (typeof radius === 'number') { radius = {tl: radius, tr: radius, br: radius, bl: radius}; } else { var defaultRadius = {tl: 0, tr: 0, br: 0, bl: 0}; for (var side in defaultRadius) { radius[side] = radius[side] || defaultRadius[side]; } }
+            ctx.beginPath();
+            ctx.moveTo(x + radius.tl, y);
+            ctx.lineTo(x + width - radius.tr, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+            ctx.lineTo(x + width, y + height - radius.br);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+            ctx.lineTo(x + radius.bl, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+            ctx.lineTo(x, y + radius.tl);
+            ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+            ctx.closePath();
+            if (fill) { ctx.fill(); }
+            if (stroke) { ctx.stroke(); }
+        }
+
+        adjustCount(0);
+
+    </script>
+</body>
+</html>
